@@ -1,0 +1,21 @@
+import gym
+import torch as th
+
+from stable_baselines3 import PPO
+
+# Custom actor (pi) and value function (vf) networks
+# of two layers of size 32 each with Relu activation function
+policy_kwargs = dict(activation_fn=th.nn.ReLU,
+                     net_arch=[dict(pi=[32, 32], vf=[32, 32])])
+# Create the agent
+model = PPO("MlpPolicy", "CartPole-v1", policy_kwargs=policy_kwargs, verbose=1)
+# Retrieve the environment
+env = model.get_env()
+# Train the agent
+model.learn(total_timesteps=100000)
+# Save the agent
+model.save("ppo_cartpole")
+
+del model
+# the policy_kwargs are automatically loaded
+model = PPO.load("ppo_cartpole", env=env)
