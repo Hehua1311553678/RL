@@ -26,3 +26,10 @@ reward shaping的一个好的例子：DeepMimic（将Imitation Learning与RL相�
 
 - 离散动作：CartPole-v1（较易比随机agent好，但是很难获得最好的性能）、LunarLander、Pong（Atari game最简单的游戏之一）、
   其他的Atari games (如Breakout)
+  
+## 二、算法
+### 1. PPO（Proximal Policy Optimization algorithm）
+(1)on-policy 算法;
+
+(2)动作空间: discrete/continuous;
+
