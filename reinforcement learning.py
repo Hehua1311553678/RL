@@ -1,8 +1,14 @@
 import torch as th
+import gym
+from gym_minigrid.wrappers import *
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.env_checker import check_env
 
-results_root = './results/ppo_cartpole'
+policy_name = 'PPO'
+# env_name = 'CartPole-v1'
+env_name = 'MiniGrid-Empty-8x8-v0'
+results_root = './rl_results/{}_{}'.format(policy_name, env_name)
 
 # Custom actor (pi) and value function (vf) networks
 # of two layers of size 32 each with Relu activation function
@@ -10,8 +16,18 @@ policy_kwargs = dict(activation_fn=th.nn.ReLU,
                      net_arch=[dict(pi=[32, 32], vf=[32, 32])])
 # Ceate the agent
 # CartPole-v1:state->(1,4), action->(1,2)
-model = PPO("MlpPolicy", "CartPole-v1", learning_rate=1e-3, policy_kwargs=policy_kwargs,
-            tensorboard_log="{}/tensorboard".format(results_root), verbose=1)
+if env_name in ['MiniGrid-Empty-8x8-v0']:
+    print("good")
+    env = gym.make(env_name)
+    # check_env(env)
+    env = RGBImgPartialObsWrapper(env)  # Get pixel observations
+    env = ImgObsWrapper(env)  # Get rid of the 'mission' field
+    model = PPO("CnnPolicy", env, learning_rate=1e-3, policy_kwargs=policy_kwargs,
+                tensorboard_log="{}/tensorboard".format(results_root), verbose=1)
+else:
+    model = PPO("MlpPolicy", env_name, learning_rate=1e-3, policy_kwargs=policy_kwargs,
+                tensorboard_log="{}/tensorboard".format(results_root), verbose=1)
+
 # Train the agent
 # Evaluate the model every 1000 steps on 5 test episodes
 # and save the evaluation to the "logs/" folder
@@ -20,7 +36,7 @@ model = PPO("MlpPolicy", "CartPole-v1", learning_rate=1e-3, policy_kwargs=policy
 # Then n_steps transitions used to training.(1 epoch == n_steps transitions)
 model.learn(total_timesteps=100000, eval_freq=1000, n_eval_episodes=5, eval_log_path="./logs/")
 # save the model
-model.save("{}/ppo_cartpole".format(results_root))
+model.save("{}/model".format(results_root))
 
 # et policy
 policy = model.policy

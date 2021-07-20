@@ -6,10 +6,14 @@ import pickle
 import tempfile
 
 import stable_baselines3 as sb3
-
+from torch import nn
+import torch as th
 from imitation.algorithms import adversarial, bc
 from imitation.data import rollout
 from imitation.util import logger, util
+from imitation.rewards import discrim_nets
+
+from Networks import ActObsMLP
 
 def imitation_learning(expert_traj_path, imitation_algo_name, rl_algo_name, env_name):
     # Load pickled expert demonstrations.
@@ -34,20 +38,25 @@ def imitation_learning(expert_traj_path, imitation_algo_name, rl_algo_name, env_
         # Train BC on expert data.
         # BC also accepts as `expert_data` any PyTorch-style DataLoader that iterates over
         # dictionaries containing observations and actions.
-        logger.configure(log_path)
+        logger.configure(log_path, format_strs=["stdout", "tensorboard"])
         trainer = bc.BC(venv.observation_space, venv.action_space, expert_data=transitions)
-        trainer.train(n_epochs=3)
-
+        trainer.train(n_epochs=100, log_interval=1)
 
     elif imitation_algo_name == 'GAIL':
-        logger.configure(log_path)
+        logger.configure(log_path, format_strs=["stdout", "tensorboard"])
         gail_trainer = adversarial.GAIL(
             venv,
             expert_data=transitions,
             expert_batch_size=32,
             gen_algo=sb3.PPO("MlpPolicy", venv, verbose=1, n_steps=1024),
+            discrim_kwargs={'discrim_net':ActObsMLP(
+                action_space=venv.action_space,
+                observation_space=venv.observation_space,
+                hid_sizes=(32, 32),
+            )}
         )
         gail_trainer.train(total_timesteps=2048)
+        trainer = gail_trainer.gen_algo
     elif imitation_algo_name == 'AIRL':
         # Train AIRL on expert data.
         logger.configure(log_path)
@@ -61,17 +70,22 @@ def imitation_learning(expert_traj_path, imitation_algo_name, rl_algo_name, env_
 
     sample_until = rollout.min_episodes(15)
     trained_ret_mean = rollout.mean_return(trainer.policy, venv, sample_until)
-    trainer.save_policy("{}/bc_policy.pth.tar".format(log_path))
+    # trainer.save_policy("{}/bc_policy.pth.tar".format(log_path))
+    th.save(trainer.policy, "{}/{}_policy.pth.tar".format(log_path, imitation_algo_name))
 
     return trained_ret_mean
 
 
 if __name__=='__main__':
     rl_algo_name = 'ppo'
-    env_name = "CartPole-v1"
-    expert_traj_path = "expert/{}_{}/rollouts/final.pkl".format(rl_algo_name, env_name)
+
+    # env_name = "CartPole-v1"
+    env_name = "MiniGrid-Empty-8x8-v0"
+
     imitation_algo = 'BC'
     # imitation_algo = 'GAIL'
+
+    expert_traj_path = "expert/{}_{}/rollouts/final.pkl".format(rl_algo_name, env_name)
 
     trained_ret_mean = imitation_learning(expert_traj_path, imitation_algo, rl_algo_name, env_name)
     print("trained_ret_mean:{}".format(trained_ret_mean))
